@@ -1,0 +1,90 @@
+/**
+ * Copyright 2021 Lightbend Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Messages in Akka Serverless get persisted in protobuf format to
+ * save on storage space in. This protobuf file contains the events
+ * and state models of things that get persisted. The service interface,
+ * the API, is located in warehouse.proto
+ */
+
+/**
+ * Specify the version of the Protobuf syntax
+ */
+syntax = "proto3";
+
+/**
+ * Packages prevent name clashes between protocol messages
+ * In this case, the ecommerce package is used for all services in this
+ * repository and the persistence package is used for all domain objects
+ */
+package ecommerce.persistence;
+
+/**
+ * Imports allow you to use definitions from other protobuf files. In
+ * this case:
+ * akkaserverless/annotations.proto contains definitions
+ * to work with Akka Serverless.
+ */
+import "akkaserverless/annotations.proto";
+
+/**
+ * This section describes how this domain relates to an event sourced entity
+ */
+option (akkaserverless.file).event_sourced_entity = {
+    name: "Product"
+    entity_type: "product"
+    state: "Product"
+    events: "ProductReceived"
+    events: "StockChanged"
+};
+
+/**
+ * The Product message is the state that is persisted
+ * for the Event Sourced entity
+ */
+message Product {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    string imageURL = 4;
+    float price = 5;
+    int32 stock = 6;
+    repeated string tags = 7;
+}
+
+/**
+ * The ProductReceived message is the event that is sent
+ * when a product is received by the warehouse
+ */
+message ProductReceived {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    string imageURL = 4;
+    float price = 5;
+    int32 stock = 6;
+    repeated string tags = 7;
+}
+
+/**
+ * The StockChanged message is the event that is sent
+ * when the stock of a product is updated
+ */
+message StockChanged {
+    string id = 1;
+    int32 stock = 6;
+}

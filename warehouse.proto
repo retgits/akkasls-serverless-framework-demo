@@ -1,0 +1,158 @@
+/**
+ * Copyright 2021 Lightbend Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * This file contains the public interface, the API, of the warehouse.
+ * As a best practice, the external interface and the internal events should
+ * be in different files
+ */
+
+/**
+ * Specify the version of the Protobuf syntax
+ */
+syntax = "proto3";
+
+/**
+ * Packages prevent name clashes between protocol messages
+ * In this case, the ecommerce package is used for all services in this
+ * repository and the persistence package is used for all domain objects
+ */
+package ecommerce;
+
+/**
+ * Imports allow you to use definitions from other protobuf files. In
+ * this case:
+ * akkaserverless/annotations.proto contains definitions
+ * to work with Akka Serverless.
+ * google/api/annotations.proto contains definitions to add
+ * HTTP based endpoints
+ */
+import "akkaserverless/annotations.proto";
+import "google/api/annotations.proto";
+import "domain.proto";
+
+/**
+ * The Product message represents a single product and is used as response
+ * for the GetProductDetails method.
+ */
+message Product {
+    string id = 1 [(akkaserverless.field).entity_key = true];
+    string name = 2;
+    string description = 3;
+    string imageURL = 4;
+    float price = 5;
+    int32 stock = 6;
+    repeated string tags = 7;
+}
+
+/**
+ * The GetProduct message is a request to get the details of a specific
+ * product. 
+ * The entity key is used by Akka Serverless to find the correct entity
+ */
+message GetProduct {
+    string id = 1 [(akkaserverless.field).entity_key = true];
+}
+
+/**
+ * The Stock message is a request to update the stock of a particular product.
+ * The entity key is used by Akka Serverless to find the correct entity
+ */
+message Stock {
+    string id = 1 [(akkaserverless.field).entity_key = true];
+    int32 stock = 6;
+}
+
+/**
+ * The InventoryBackendService shows all rpc methods that the Inventory Backend service
+ * can handle. the names of the rpc methods should match the command handler names in
+ * the code.
+ */ 
+service InventoryBackendService {
+    /**
+     * The SERVICE_TYPE_ENTITY lets Akka Serverless know this service implements
+     * an entity
+     */
+    option (akkaserverless.service) = {
+        type: SERVICE_TYPE_ENTITY
+        component: ".domain.Warehouse"
+    };
+
+    /**
+     * The ReceiveProduct method is called when a new product is added to the 
+     * warehouse. The HTTP annotation makes this operation available over HTTP 
+     * on the mentioned URL. The response is the newly added product.
+     */
+    rpc ReceiveProduct (Product) returns (Product) {
+        option (google.api.http) = {
+            post: "/warehouse/{id}",
+            body: "*"
+        };
+    }
+
+    /**
+     * The UpdateStock method is called to update the stock of a product in 
+     * the warehouse. The HTTP annotation makes this operation available over HTTP 
+     * on the mentioned URL. The response is the product with the new stock.
+     */
+    rpc UpdateStock (Stock) returns (Product) {
+        option (google.api.http) = {
+            post: "/warehouse/{id}/stock",
+            body: "*"
+        };
+    }
+}
+
+/**
+ * The InventoryFrontendService shows all rpc methods that the Inventory Frontend service
+ * can handle. the names of the rpc methods should match the command handler names in
+ * the code.
+ */ 
+service InventoryFrontendService {
+    rpc ProcessProductReceived(ecommerce.persistence.ProductReceived) returns (ecommerce.persistence.Product) {
+        option (akkaserverless.method).eventing.in = {
+            event_sourced_entity: "inventory"
+        };
+        option (akkaserverless.method).view.update = {
+            table: "products"
+            transform_updates: true
+        };
+    }
+
+    rpc ProcessStockChanged(ecommerce.persistence.StockChanged) returns (ecommerce.persistence.Product) {
+        option (akkaserverless.method).eventing.in = {
+            event_sourced_entity: "inventory"
+        };
+        option (akkaserverless.method).view.update = {
+            table: "products"
+            transform_updates: true
+        };
+    }
+
+    /**
+     * The GetProductDetails method is called to get the details of a product in 
+     * the warehouse. The HTTP annotation makes this operation available over HTTP 
+     * on the mentioned URL. The response is the requested product.
+     */
+    rpc GetProductDetails (GetProduct) returns (ecommerce.persistence.Product) {
+        option (akkaserverless.method).view.query = {
+            query: "SELECT * FROM products WHERE id = :id"
+        };
+        option (google.api.http) = {
+            get: "/warehouse/{id}"
+        };
+    }
+}
